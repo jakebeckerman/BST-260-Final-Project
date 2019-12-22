@@ -1,0 +1,913 @@
+---
+title: "Final Project GitHub Version"
+author: "JPBH"
+date: "12/15/2019"
+output: html_document
+---
+
+To download the data used here:
+1) Go to https://www2.census.gov/programs-surveys/acs/data/pums/2017/5-Year/ 
+2) Download the data "csv_pma.zip"
+3) Unzip the file and set the proper file directory in the code below.
+
+
+## Overview and Motivation
+
+Head Start is a federal preschool program that serves nearly three quarters of a million children from low-income families every year [1] across the US and US territories [2]. With its foundations in President Lyndon Johnson’s War on Poverty, Head Start is designed to address key issues that disproportionately impact the health and wellbeing of children in low-income families [3,4], such as low school readiness [5,6] and poor nutrition [7,8]. Enrolled children receive instruction with a research-based curriculum, meals and snacks meeting federal nutrition guidelines, as well as medical, dental, and mental health care [9]. Parents of enrolled children can capitalize on such Head Start services as parenting and health education [10]. Head Start also provides opportunities for parents to expand their social networks and take on leadership roles (e.g., parent committees [9]), which may result in further benefits to parents and their children [11]. Evaluations to date have demonstrated positive impacts of these Head Start services on children’s school readiness [12,13] and health [14,15], as well as their parents’ educational advancement [11] and parenting practices [16]. Despite these benefits, the population-level impact of Head Start may be limited by the fact that less than 35% of eligible children are enrolled [17].
+
+For my dissertation work, I am conducting three studies stemming from an obesity prevention trial in Head Start preschools in the greater Boston area. It is unclear if my findings will generalize to the broader population of children in poverty because the children who enroll in Head Start may be systematically different from the eligible children who do not enroll. More importantly, there may be particular subpopulations of eligible children who do not enroll in Head Start and therefore do not enjoy the benefits of the program. For example, if children living in certain neighborhoods are less likely to enroll in Head Start, it may inform Head Start recruitment efforts or even the opening of a new Head Start center to ensure all eligible children have an equal opportunity to enroll in Head Start.
+
+While no existing data provide estimates on the proportion of the poulation enrolled in Head Start specifically, the American Community Survey provides a representative sample of the population and includes data on preschool enrollment.
+
+The purpose of this study is to :
+1) describe the population of children who are age- and income-eligible for Head Start living in the greater Boston area 
+2) identify child and parent characteristics associated with enrollment in preschool among this population 
+
+
+
+## Related Work
+
+  Head Start offers two years of programming starting at three years of age, which will henceforth be referred to as year one and year two. Among children not in Head Start for both years, enrollment can be divided into three distinct patterns. The first pattern is never enrolling in Head Start. Current data sources (e.g., Head Start Program Information Reports [18]) measure Head Start attendance for one year rather than longitudinally across both years of a child’s age eligibility. Therefore, while it is possible to track the number of eligible children not enrolled in a given year, it is difficult to estimate how many eligible children do not enroll in Head Start in either of their two years of age eligibility. 
+  The second enrollment pattern is early dropout, which is when children enroll at the beginning of year one, but leave Head Start before completing year two. A national survey of children entering Head Start in fall of 2009 found that 27% of children dropped out early [19]. About 10% of children enrolled in the fall dropped out before the end of the year. Of the three year olds entering Head Start in fall 2009, an additional 31% dropped out after completing their first year but before completing their second. Notably, even if children who enroll in year one are no longer income-eligible in year two, they can remain in Head Start for year two [9]; income eligibility is not a cause of early dropout. 
+  The third enrollment pattern is late enrollment, which is when children first enroll in Head Start after the beginning of their first year of eligibility. In a 2014 national survey, 66% of children in Head Start were newly entering the program, of whom 37% were four years old [20], making them old enough to have enrolled the year before; as a proportion of the total population enrolled in Head Start in 2014, about 24% enrolled late. Unlike early dropout, late enrollment can be a function of differing income; children income-eligible at four years of age may not have been eligible the previous year.
+  I will consider these distinct patterns of enrollment in a separate study; the data for this study are not longitudinal and therefore cannot be used to identify these distinct enrollment patterns. However, it is important to consider this other work on Head Start enrollment to provide context for the findings of this study.
+
+
+
+## Initial Questions
+
+1) What are the demographic characteristics of the population of children who are age- and income-eligible for Head Start living in the greater Boston area?
+
+2) What child and parent characteristics are associated with enrollment in preschool among this population?
+
+The answer to question 1 is central to my dissertation work. I will compare the characteristics of this sample to the characteristics of the children enrolled in Head Start in the Greater Boston area (from data not publicly available). Although I do not know which children in the ACS sample are also in my Head Start-enrolled sample, any large differences between the two samples can likely be attributed to eligible children who do not enroll in Head Start.
+
+The answer to question 2 is a natural next step from question 1. However, given the very small sample, there likely is low power to detect associations between population characteristics and preschool enrollment.
+
+## Data
+
+American Community Survey (ACS) Public Use Microdata Sample (PUMS) 2013 - 2017
+
+The ACS provides representative statistics on the population residing in the US each year. Unlike the census, which is a full count of all people in the US every ten years, the ACS collects data from about 2.5% of households each year.
+
+To work with individual-level data in the ACS, it is necessary to use the PUMS, which is a random sample of about 1% of the data from each survey year. To get stable estimates for smaller geographic units, called Public Use Microdata Areas (PUMAs), it is necessary to look at five years of data. Thus, I have selected the most recent five-year data set. For more information on the ACS and PUMS, see:
+
+https://www.census.gov/content/dam/Census/library/publications/2009/acs/ACSPUMS.pdf
+
+To download the data used here:
+1) Go to https://www2.census.gov/programs-surveys/acs/data/pums/2017/5-Year/ 
+2) Download the data "csv_pma.zip"
+3) Unzip the file and set the proper file directory in the code below.
+
+## Exploratory Analysis
+
+I divided the exploratory analysis into three chapters:
+1) load data and restrict to analytic sample
+2) univariate analysis on all variables of interest
+3) create table 1 
+
+The general approach is to first restrict the data to my analytic sample, then understand the distributions of the variables of interest for this study, and last test for unadjusted associations between those variables and my outcome of interest, enrollment in preschool. I will split each into a separate chunk of R code.
+
+To produce statistics that are representative of the population, it is necessary to use sample weights because this population is not a simple random sample of the population in the greater Boston area. It is also necessary to use specialized methods to obtain valid standard errors. 
+
+```{r}
+
+#load needed packages
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(survey)
+library(srvyr)
+library(sf)
+library(table1)
+library(xtable)
+library(stargazer)
+library(gridExtra)
+
+#######################################################
+#chapter 1 - load data and restrict to analytic sample#
+#######################################################
+MA_PUMS <- read.csv("C:/Users/jakep/OneDrive/Documents/BST_260_datascience/final project working on code/csv_pma/psam_p25.csv")
+
+#Note: the above line of code must be replaced with the appropriate file directory if run on any computer other than the JPBH's computer. 
+
+#To download the data used here:
+#1) Go to https://www2.census.gov/programs-surveys/acs/data/pums/2017/5-Year/ 
+#2) Download the data "csv_pma.zip"
+#3) Unzip the file and set the proper file directory.
+
+
+sum(is.na(MA_PUMS$AGEP)) #0
+  #can restrict by age for the whole sample
+  prek_age <- MA_PUMS %>% filter(AGEP <= 5 & AGEP >= 2) #depending on when in the year the survey was done, kids can be 2 - 5 years old and enrolled in preschool
+    table(prek_age$AGEP)
+  
+sum(is.na(prek_age$PUMA)) #0 
+  #can restrict to study area for the whole sample
+  Bos_Cam_Som_prek <- prek_age %>% filter(PUMA == 3301 | PUMA == 3302 | PUMA == 3303 | PUMA == 3304 | PUMA == 3305 | PUMA == 506 | PUMA == 507)
+
+sum(is.na(Bos_Cam_Som_prek$SCH)) #371
+  #need to drop these 371 - missing the outcome of this study
+  Bos_Cam_Som_prek <- Bos_Cam_Som_prek %>% filter(!(is.na(SCH)))
+
+sum(is.na(Bos_Cam_Som_prek$SCHG)) #289
+  xtabs(~ Bos_Cam_Som_prek$SCH + Bos_Cam_Som_prek$SCHG, addNA = TRUE)
+  #289 missing here. Note that everyone with SCH == 1 is missing on SCHG. Need to look at missingness in SCHG among kids with SCH != 1
+  Bos_Cam_Som_prek %>% filter(SCH != 1) %>% summarize(sum(is.na(SCHG)))
+    #among kids in school (i.e., SCH != 1), all have a grade. (This is also apparent in the crosstab)
+                              
+
+  
+#some of the 5 year olds currently in the sample will be in kindergarten. need to remove them. 
+#Some of the 2 year olds currently in the sample may not be old enough for prechool.
+  
+  #age by school - are there 2 and/or 5 year olds who are in pre-k?
+  xtabs(~ Bos_Cam_Som_prek$AGEP + Bos_Cam_Som_prek$SCH, addNA = TRUE)
+  #all 2 year olds got dropped when I dropped missing SCH 
+  #note that 44 5 year olds are not in school, 294 are
+      xtabs(~ prek_age$AGEP + prek_age$SCH, addNA = TRUE)
+      #confirmed - all 2 y/o kids missing on the SCH variable, so they all got dropped
+ 
+  
+  #age by school grade - any 5 year olds in pre-k?
+  xtabs(~ Bos_Cam_Som_prek$AGEP + Bos_Cam_Som_prek$SCHG, addNA = TRUE)
+  #yes - some 5 year olds in nursery/pre-k (SCHG == 1). 
+  #note also some 3- and 4- year olds in kindergarten (SCHG == 2), some 5-year olds in 1st or 2nd grade (SCHG == 3, 4)
+    #a total of 296 kids from this sampe in kindergarten, 1st, or 2nd
+  
+#I will restrict to only the 3-5 y/o kids in pre-k or not in school
+right_grades <- Bos_Cam_Som_prek %>% filter(SCHG == 1 | SCH == 1) #741 kids left
+xtabs(~ right_grades$AGEP + right_grades$SCHG, addNA = TRUE)
+  
+
+sum(is.na(right_grades$POVPIP)) #12
+  #only 12 missing POVPIP among the kids of prek age not in school or in prek. I'm going to restrict on this too b/c it is so central to my focus on Head Start
+  right_grades <- right_grades %>% filter(!(is.na(POVPIP)))
+
+
+  
+final_analytic_sample <- right_grades %>% filter(POVPIP <= 130)
+
+#This is now my final sample: 3 - 5 y/o kids, living in the study area, not in school or in pre-k, and income-eligible for Head Start
+
+```
+
+
+
+```{r}
+
+##############################################################
+#chapter 2 - univariate analysis on all variables of interest#
+##############################################################
+
+#outcome: in pre-k
+table(final_analytic_sample$SCHG, useNA = "always")
+  #88 in prek, 113 not in school
+  #need to code a new 0/1 variable for being in prek
+  
+#ind var: age
+table(final_analytic_sample$AGEP, useNA = "always")
+
+#ind var and determinant of Head Start eligibility: income
+hist(final_analytic_sample$POVPIP)
+
+  
+#ind var and sampling design factor: PUMA
+table(final_analytic_sample$PUMA, useNA = "always")
+
+
+#ind var: sex
+table(final_analytic_sample$SEX, useNA = "always")
+  #(male is 1, female is 2)
+
+#ind var: nativity
+table(final_analytic_sample$NATIVITY, useNA = "always")
+  #188 native, 13 foreign born
+
+#ind var: race
+table(final_analytic_sample$RAC1P, useNA = "always")
+  #1 = white
+  #2 = black/aa
+  #3 = american indian
+  #4 = alaska native
+  #5 = american indian and alaska native tribes specified
+  #6 = asian
+  #7 = native hawaiian or pacific islander
+  #8 = other race
+  #9 = two or more races
+    #need to collapse american indian into other
+ 
+
+#ind var: ethnicity
+table(final_analytic_sample$HISP, useNA = "always")
+  #no missing, 114 not hispanic (1) and the rest are Hispanic. need to recode and combine with race
+
+
+#ind var: citizenship status
+table(final_analytic_sample$CIT, useNA = "always")
+  #1 = born in US
+  #2 = born in PI, USVI, or norther marianas
+  #3 = born abroad to US parents
+  #4 = US citizen by naturalization
+  #5 = not US citizen
+    #I want to just collapse to US citizen or not
+
+#ind var: mobility status
+table(final_analytic_sample$MIG, useNA = "always")
+  #1 = lived in this household 1 year ago
+  #2 = lived outside US/PR 1 year ago
+  #3 = lived in different household in US/PR 1 year ago
+
+#ind var: employment status of parents
+table(final_analytic_sample$ESP, useNA = "always")
+  #1 = Living with two parents: both parents in labor force
+  #2 = Living with two parents: Father only in labor force
+  #3 = Living with two parents: Mother only in labor force
+  #4 = Living with two parents: Neither parent in labor force
+  #5 = Living with father: Father in the labor force
+  #6 = Living with father: Father not in labor force
+  #7 = Living with mother: Mother in the labor force
+  #8 = Living with mother: Mother not in labor force
+
+#ind var: nativity of parent
+table(final_analytic_sample$NOP, useNA = "always")
+  #1 = Living with two parents: both parents native
+  #2 = Living with two parents: Father only foreign born
+  #3 = Living with two parents: Mother only foreign born
+  #4 = Living with two parents: Both foreign born
+  #5 = Living with father: Father native
+  #6 = Living with father: Father foreign born
+  #7 = Living with mother: Mother native
+  #8 = Living with mother: Mother foreign born
+
+
+###########################
+#chapter 2.1 - recode vars#
+###########################
+
+#outcome variable - 0/1 for in pre-k
+final_analytic_sample$in_prek <- NA
+final_analytic_sample$in_prek[final_analytic_sample$SCHG == 1] <- 1                       
+final_analytic_sample$in_prek[is.na(final_analytic_sample$SCHG)] <- 0
+  xtabs(~ final_analytic_sample$in_prek + final_analytic_sample$SCHG, addNA = TRUE)
+#outcome variable character
+  final_analytic_sample$in_prek_char <- NA
+  final_analytic_sample$in_prek_char[final_analytic_sample$SCHG == 1] <- 'In Pre-K'                     
+  final_analytic_sample$in_prek_char[is.na(final_analytic_sample$SCHG)] <- 'Not in Pre-K'
+  xtabs(~ final_analytic_sample$in_prek_char + final_analytic_sample$SCHG, addNA = TRUE)
+  
+#recoding sex to female to it is easier to know which is which
+final_analytic_sample$female <- NA
+final_analytic_sample$female[final_analytic_sample$SEX == 2] <- 1
+final_analytic_sample$female[final_analytic_sample$SEX == 1] <- 0
+  xtabs(~ final_analytic_sample$SEX + final_analytic_sample$female, addNA = TRUE)    
+ 
+#collapsing some of the race categories and combining with hispanic
+final_analytic_sample$race_eth <- NA
+final_analytic_sample$race_eth[final_analytic_sample$HISP != 1] <- "Hispanic"
+final_analytic_sample$race_eth[final_analytic_sample$HISP == 1 & final_analytic_sample$RAC1P == 1] <- "NH White"
+final_analytic_sample$race_eth[final_analytic_sample$HISP == 1 & final_analytic_sample$RAC1P == 2] <- "NH Black/AA"
+final_analytic_sample$race_eth[final_analytic_sample$HISP == 1 & final_analytic_sample$RAC1P == 6] <- "NH Asian"
+final_analytic_sample$race_eth[final_analytic_sample$HISP == 1 & (final_analytic_sample$RAC1P %in% c(3, 4, 5, 7, 8, 9))] <- "NH Other"
+  xtabs(~ final_analytic_sample$race_eth + final_analytic_sample$HISP, addNA = TRUE)
+  xtabs(~ final_analytic_sample$race_eth + final_analytic_sample$RAC1P, addNA = TRUE)
+  xtabs(~ final_analytic_sample$HISP + final_analytic_sample$RAC1P, addNA = TRUE)
+  
+#creating binary var for US citizenship
+final_analytic_sample$UScitizen <- NA
+final_analytic_sample$UScitizen[final_analytic_sample$CIT %in% c(1, 2, 3, 4)] <- 1
+final_analytic_sample$UScitizen[final_analytic_sample$CIT == 5] <- 0
+  xtabs(~ final_analytic_sample$CIT + final_analytic_sample$UScitizen, addNA = TRUE)
+
+#create binary variable for having moved in past year
+final_analytic_sample$moved_past_yr <- NA
+final_analytic_sample$moved_past_yr[final_analytic_sample$MIG %in% c(2, 3)] <- 1
+final_analytic_sample$moved_past_yr[final_analytic_sample$MIG == 1] <- 0
+  xtabs(~ final_analytic_sample$moved_past_yr + final_analytic_sample$MIG, addNA = TRUE)
+
+#create binary variable for parent employment
+final_analytic_sample$parent_employed <- NA
+final_analytic_sample$parent_employed[final_analytic_sample$ESP %in% c(1, 5, 7)] <- 1
+final_analytic_sample$parent_employed[final_analytic_sample$ESP %in% c(2, 3, 4, 6, 8)] <- 0
+  xtabs(~ final_analytic_sample$parent_employed + final_analytic_sample$ESP, addNA = TRUE)
+
+  
+#create binary variable for parent nativity
+final_analytic_sample$ge1parent_native <- NA
+final_analytic_sample$ge1parent_native[final_analytic_sample$NOP %in% c(1, 2, 3, 5, 7)] <- 1
+final_analytic_sample$ge1parent_native[final_analytic_sample$NOP %in% c(4, 6, 8)] <- 0
+  xtabs(~ final_analytic_sample$ge1parent_native + final_analytic_sample$NOP, addNA = TRUE)
+  
+  
+#create variable for number of parents in household
+xtabs(~ final_analytic_sample$ESP + final_analytic_sample$NOP, addNA = TRUE)
+  #note that 1 record missing on nativity has employment status, so use employment status to code number of parents
+final_analytic_sample$num_parents <- NA
+final_analytic_sample$num_parents[final_analytic_sample$ESP %in% c(1, 2, 3, 4)] <- 2
+final_analytic_sample$num_parents[final_analytic_sample$ESP %in% c(5, 6, 7, 8)] <- 1
+  xtabs(~ final_analytic_sample$num_parents + final_analytic_sample$ESP, addNA = TRUE)
+
+```
+
+
+```{r warning=FALSE}
+
+#########################################################################
+#chapter 2.2 - unweighted and weighted univariate analysis on all variables of interest#
+#########################################################################
+
+#using code from: https://r.789695.n4.nabble.com/Using-quot-survey-quot-package-with-ACS-PUMS-td4697675.html
+  
+options( "survey.replicates.mse" = TRUE)
+pums_p.rep <- svrepdesign(repweights = final_analytic_sample[207:286],
+                          weights = ~PWGTP,
+                          combined.weights = TRUE,
+                          type = "JK1",
+                          scale = 4/80, rscales = rep(1, 80),
+                          data = final_analytic_sample)
+
+#in pre-k
+svytable(~final_analytic_sample$in_prek, pums_p.rep)
+table(final_analytic_sample$in_prek)
+
+svymean(~as.factor(final_analytic_sample$in_prek), pums_p.rep)
+prop.table(table(final_analytic_sample$in_prek))
+
+
+
+#age
+svytable(~final_analytic_sample$AGEP, pums_p.rep)
+table(final_analytic_sample$AGEP)
+
+svymean(~as.factor(final_analytic_sample$AGEP), pums_p.rep)
+prop.table(table(final_analytic_sample$AGEP))
+
+svymean(~final_analytic_sample$AGEP, pums_p.rep)
+mean(final_analytic_sample$AGEP)
+
+
+#how many kids in each PUMA
+svytable(~final_analytic_sample$PUMA, pums_p.rep)
+table(final_analytic_sample$PUMA)
+
+svymean(~as.factor(final_analytic_sample$PUMA), pums_p.rep)
+prop.table(table(final_analytic_sample$PUMA))
+  
+  
+#sex distribution
+svytable(~final_analytic_sample$female, pums_p.rep)
+table(final_analytic_sample$female)
+
+svymean(~as.factor(final_analytic_sample$female), pums_p.rep)
+prop.table(table(final_analytic_sample$female))
+ 
+
+#nativity
+svytable(~final_analytic_sample$NATIVITY, pums_p.rep)
+table(final_analytic_sample$NATIVITY)
+
+svymean(~as.factor(final_analytic_sample$NATIVITY), pums_p.rep)
+prop.table(table(final_analytic_sample$NATIVITY))
+  
+
+#race/ethnicity
+svytable(~final_analytic_sample$race_eth, pums_p.rep)
+table(final_analytic_sample$race_eth)
+
+svymean(~as.factor(final_analytic_sample$race_eth), pums_p.rep)
+prop.table(table(final_analytic_sample$race_eth))
+
+
+
+#citizenship status
+svytable(~final_analytic_sample$UScitizen, pums_p.rep)
+table(final_analytic_sample$UScitizen)
+
+svymean(~as.factor(final_analytic_sample$UScitizen), pums_p.rep)
+prop.table(table(final_analytic_sample$UScitizen))
+
+
+#moved in past year
+svytable(~final_analytic_sample$moved_past_yr, pums_p.rep)
+table(final_analytic_sample$moved_past_yr)
+
+svymean(~as.factor(final_analytic_sample$moved_past_yr), pums_p.rep)
+prop.table(table(final_analytic_sample$moved_past_yr))
+  
+
+#parent employment - 
+svytable(~final_analytic_sample$parent_employed, pums_p.rep)
+table(final_analytic_sample$parent_employed)
+
+
+  final_analytic_sample_noNA <- final_analytic_sample %>% filter(!(is.na(parent_employed)))
+svymean(~as.factor(final_analytic_sample_noNA$parent_employed), pums_p.rep)
+prop.table(table(final_analytic_sample_noNA$parent_employed))
+
+
+#parent nativity - 
+svytable(~final_analytic_sample$ge1parent_native, pums_p.rep)
+table(final_analytic_sample$ge1parent_native)
+
+
+  final_analytic_sample_noNAnative <- final_analytic_sample %>% filter(!(is.na(ge1parent_native)))
+  svymean(~as.factor(final_analytic_sample_noNAnative$ge1parent_native), pums_p.rep)
+  prop.table(table(final_analytic_sample_noNAnative$ge1parent_native))
+
+
+# number of parents -
+svytable(~final_analytic_sample$num_parents, pums_p.rep)
+table(final_analytic_sample$num_parents)
+  
+
+svymean(~as.factor(final_analytic_sample_noNA$num_parents), pums_p.rep)
+prop.table(table(final_analytic_sample_noNA$num_parents))
+
+```
+
+
+
+
+```{r warning=FALSE}
+
+  #######################################
+  #chapter 3 - making table 1 (weighted)#
+  #######################################  
+  
+
+  #age
+  weighted_table_1_age <- svyby(formula = ~as.factor(AGEP), by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_age[2:4])
+  
+  weighted_table_1_age_p <- svychisq(~AGEP+in_prek, design = pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_age_p$p.value
+  
+  weighted_table_1_age_total <- svymean(~as.factor(final_analytic_sample$AGEP), pums_p.rep)
+  #weighted_table_1_age_total[1:3]
+  
+  weighted_table_1_age_final <- cbind(t(weighted_table_1_age[2:4]), weighted_table_1_age_total, c(weighted_table_1_age_p$p.value, NA, NA))
+  
+  
+  #PUMA
+  weighted_table_1_PUMA <- svyby(formula = ~as.factor(PUMA), by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_PUMA[2:8])
+  
+  weighted_table_1_PUMA_p <- svychisq(~PUMA+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_PUMA_p$p.value
+  
+    weighted_table_1_PUMA_total <- svymean(~as.factor(final_analytic_sample$PUMA), pums_p.rep)
+
+  
+  weighted_table_1_PUMA_final <- cbind(t(weighted_table_1_PUMA[2:8]), weighted_table_1_PUMA_total, c(weighted_table_1_PUMA_p$p.value, NA, NA, NA, NA, NA, NA))
+  
+  
+  
+  #sex distribution
+  weighted_table_1_FEMALE <- svyby(formula = ~female, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_FEMALE[2])
+  
+  weighted_table_1_FEMALE_p <- svychisq(~female+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_FEMALE_p$p.value
+  
+   weighted_table_1_FEMALE_total <- svymean(~as.factor(final_analytic_sample$female), pums_p.rep)
+  
+  weighted_table_1_FEMALE_final <- cbind(t(weighted_table_1_FEMALE[2]), weighted_table_1_FEMALE_total, weighted_table_1_FEMALE_p$p.value)
+  
+  
+  #nativity
+
+  weighted_table_1_NATIVITY <- svyby(formula = ~NATIVITY, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_NATIVITY[2])
+  
+  weighted_table_1_NATIVITY_p <- svychisq(~NATIVITY+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_NATIVITY_p$p.value
+  
+   weighted_table_1_NATIVITY_total <- svymean(~as.factor(final_analytic_sample$NATIVITY), pums_p.rep)
+  
+  weighted_table_1_NATIVITY_final <- cbind(t(weighted_table_1_NATIVITY[2]), weighted_table_1_NATIVITY_total[2], weighted_table_1_NATIVITY_p$p.value)
+  
+  weighted_table_1_NATIVITY_final[,1] <- weighted_table_1_NATIVITY_final[,1] - 1
+  weighted_table_1_NATIVITY_final[,2] <- weighted_table_1_NATIVITY_final[,2] - 1
+  
+  
+  
+  
+  #race/ethnicity
+  weighted_table_1_RACE_ETH <- svyby(formula = ~race_eth, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_RACE_ETH[2:6])
+  
+  weighted_table_1_RACE_ETH_p <- svychisq(~race_eth+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_RACE_ETH_p$p.value
+  
+  weighted_table_1_RACE_ETH_total <- svymean(~as.factor(final_analytic_sample$race_eth), pums_p.rep)
+  
+  weighted_table_1_RACE_ETH_final <- cbind(t(weighted_table_1_RACE_ETH[2:6]), weighted_table_1_RACE_ETH_total, c(weighted_table_1_RACE_ETH_p$p.value, NA, NA, NA, NA))
+  
+  
+  #citizenship status
+  weighted_table_1_USCITIZEN <- svyby(formula = ~UScitizen, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_USCITIZEN[2])
+  
+  weighted_table_1_USCITIZEN_p <- svychisq(~UScitizen+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_USCITIZEN_p$p.value
+  
+  weighted_table_1_USCITIZEN_total <- svymean(~as.factor(final_analytic_sample$UScitizen), pums_p.rep)
+  
+  weighted_table_1_USCITIZEN_final <- cbind(t(weighted_table_1_USCITIZEN[2]), weighted_table_1_USCITIZEN_total[2], weighted_table_1_USCITIZEN_p$p.value)
+  
+  
+  #moved in past year
+  weighted_table_1_MOVED_PAST_YR <- svyby(formula = ~moved_past_yr, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_MOVED_PAST_YR[2])
+  
+  weighted_table_1_MOVED_PAST_YR_p <- svychisq(~moved_past_yr+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_MOVED_PAST_YR_p$p.value
+  
+   weighted_table_1_MOVED_PAST_YR_total <- svymean(~as.factor(final_analytic_sample$moved_past_yr), pums_p.rep)
+  
+  weighted_table_1_MOVED_PAST_YR_final <- cbind(t(weighted_table_1_MOVED_PAST_YR[2]), weighted_table_1_MOVED_PAST_YR_total[2], weighted_table_1_MOVED_PAST_YR_p$p.value)
+  
+  #parent employment - 
+  weighted_table_1_PARENT_EMPLOYED <- svyby(formula = ~parent_employed, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_PARENT_EMPLOYED[2])
+  
+  weighted_table_1_PARENT_EMPLOYED_p <- svychisq(~parent_employed+in_prek, pums_p.rep, na.rm=T, data=final_analytic_sample)
+  #weighted_table_1_PARENT_EMPLOYED_p$p.value
+  
+  weighted_table_1_PARENT_EMPLOYED_total <- svymean(~as.factor(parent_employed), pums_p.rep, na.rm=T, data=final_analytic_sample)
+  
+  weighted_table_1_PARENT_EMPLOYED_final <- cbind(t(weighted_table_1_PARENT_EMPLOYED[2]), weighted_table_1_PARENT_EMPLOYED_total[2], weighted_table_1_PARENT_EMPLOYED_p$p.value)
+  
+  
+  #parent nativity - 
+  weighted_table_1_GE1PARENT_NATIVE <- svyby(formula = ~ge1parent_native, by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_GE1PARENT_NATIVE[2])
+  
+  weighted_table_1_GE1PARENT_NATIVE_p <- svychisq(~ge1parent_native+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_GE1PARENT_NATIVE_p$p.value
+  
+  weighted_table_1_GE1PARENT_NATIVE_total <- svymean(~as.factor(final_analytic_sample$ge1parent_native), na.rm=T, pums_p.rep)
+  
+  weighted_table_1_GE1PARENT_NATIVE_final <- cbind(t(weighted_table_1_GE1PARENT_NATIVE[2]), weighted_table_1_GE1PARENT_NATIVE_total[2], weighted_table_1_GE1PARENT_NATIVE_p$p.value)
+  
+  
+  # number of parents -
+  weighted_table_1_NUM_PARENTS <- svyby(formula = ~as.factor(num_parents), by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_NUM_PARENTS[2])
+  
+  weighted_table_1_NUM_PARENTS_p <- svychisq(~num_parents+in_prek, pums_p.rep, na.rm=T, data=final_analytic_sample)
+  #weighted_table_1_NUM_PARENTS_p$p.value
+  
+  weighted_table_1_NUM_PARENTS_total <- svymean(~as.factor(final_analytic_sample$num_parents), pums_p.rep, na.rm=T)
+  
+  weighted_table_1_NUM_PARENTS_final <- cbind(t(weighted_table_1_NUM_PARENTS[2]), weighted_table_1_NUM_PARENTS_total, c(weighted_table_1_NUM_PARENTS_p$p.value, NA))
+  
+
+  #PUMA - 
+  weighted_table_1_PUMA <- svyby(formula = ~as.factor(PUMA), by = ~in_prek, design = pums_p.rep, FUN = svymean, na.rm=T, data=final_analytic_sample)
+  #t(weighted_table_1_PUMA[2:8])
+  
+  weighted_table_1_PUMA_p <- svychisq(~PUMA+in_prek, pums_p.rep, data=final_analytic_sample)
+  #weighted_table_1_PUMA_p$p.value
+  
+   weighted_table_1_PUMA_total <- svymean(~as.factor(final_analytic_sample$PUMA), pums_p.rep)
+  
+  weighted_table_1_PUMA_final <- cbind(t(weighted_table_1_PUMA[2:8]), weighted_table_1_PUMA_total, c(weighted_table_1_PUMA_p$p.value, NA, NA, NA, NA, NA, NA))
+  
+  
+  
+  
+  
+  
+  #all variables together in one table
+  weighted_table_1_final <- rbind(
+  weighted_table_1_age_final, 
+  weighted_table_1_FEMALE_final,
+  weighted_table_1_RACE_ETH_final,
+  weighted_table_1_NATIVITY_final,
+  weighted_table_1_USCITIZEN_final,
+  weighted_table_1_MOVED_PAST_YR_final,
+  weighted_table_1_NUM_PARENTS_final,
+  weighted_table_1_PARENT_EMPLOYED_final,
+  weighted_table_1_GE1PARENT_NATIVE_final,
+  weighted_table_1_PUMA_final)
+  
+  
+  colnames(weighted_table_1_final)[colnames(weighted_table_1_final) == "0"] <- "Not in Pre-K"
+  colnames(weighted_table_1_final)[colnames(weighted_table_1_final) == "1"] <- "In Pre-K"
+  colnames(weighted_table_1_final)[colnames(weighted_table_1_final) == "weighted_table_1_age_total"] <- "Total"
+  colnames(weighted_table_1_final)[colnames(weighted_table_1_final) == ""] <- "P value"
+  
+  #colnames(weighted_table_1_final)
+  
+  rownames(weighted_table_1_final)[1] <- "3 years old"
+  rownames(weighted_table_1_final)[2] <- "4 years old"
+  rownames(weighted_table_1_final)[3] <- "5 years old"
+  rownames(weighted_table_1_final)[4] <- "Female"
+  rownames(weighted_table_1_final)[5] <- "Hispanic"
+  rownames(weighted_table_1_final)[6] <- "NH Asian"
+  rownames(weighted_table_1_final)[7] <- "NH Black/AA"
+  rownames(weighted_table_1_final)[8] <- "NH Other"
+  rownames(weighted_table_1_final)[9] <- "NH White"
+  rownames(weighted_table_1_final)[10] <- "Foreign Born"
+  rownames(weighted_table_1_final)[11] <- "US Citizen"
+  rownames(weighted_table_1_final)[12] <- "Moved in past year"
+  rownames(weighted_table_1_final)[13] <- "Single parent household"
+  rownames(weighted_table_1_final)[14] <- "One or both parents employed"
+  rownames(weighted_table_1_final)[15] <- "One or both parents US born"
+  rownames(weighted_table_1_final)[16] <- "Cambridge"
+  rownames(weighted_table_1_final)[17] <- "Somerville, Everett"
+  rownames(weighted_table_1_final)[18] <- "Allston, Brighton, Fenway"
+  rownames(weighted_table_1_final)[19] <- "Back Bay, Beacon Hill, Charlestown, East Boston, Central, South End"
+  rownames(weighted_table_1_final)[20] <- "Dorchester, South Boston"
+  rownames(weighted_table_1_final)[21] <- "Mattapan, Roxbury"
+  rownames(weighted_table_1_final)[22] <- "Hyde Park, Jamaica Plain, Roslindale, West Roxbury"
+  
+  #rownames(weighted_table_1_final)
+  
+  weighted_table_1_final[,1] <- weighted_table_1_final[,1]*100
+  weighted_table_1_final[,2] <- weighted_table_1_final[,2]*100
+  weighted_table_1_final[,3] <- weighted_table_1_final[,3]*100
+  
+  
+
+  stargazer(weighted_table_1_final, type = "text", digits = 1)
+  
+
+```
+
+## Final Analysis
+
+Given that none of the characteristics I considered had a statistically significant unadjusted association with preschool enrollment, it is unlikely that any of these factors will have statistically significant associations with preschool enrollment when adjusted for one another. However, I will go ahead and test these associations and then visualize the results. 
+
+
+
+```{r warning=FALSE}
+
+
+  
+  #########################################
+  #chapter 4 - predicting pre-k enrollment#
+  ######################################### 
+
+
+#child demographics
+stargazer(svyglm(formula = in_prek ~ as.factor(AGEP) + as.factor(female) + as.factor(NATIVITY) + as.factor(race_eth) + as.factor(UScitizen), family = quasibinomial(), design = pums_p.rep, data = final_analytic_sample), type = "text", title="Child Demographics Logistic Regression Model")
+#no child demographics have a statistically significant independent association with preschool enrollment
+
+#parent and family demographics
+stargazer(svyglm(formula = in_prek ~ as.factor(PUMA) + as.factor(moved_past_yr) + as.factor(parent_employed) + as.factor(num_parents) + as.factor(ge1parent_native), family = quasibinomial(), design = pums_p.rep, data = final_analytic_sample), type = "text", title="Parent and Family Demographics Logistic Regression Model")
+#no parent or family demographics have a statistically significant independent association with preschool enrollment
+
+
+#all characteristics together
+  #Since no child, parent, or family demographics have statistically significant associations with preschool enrollment, I will model them all together. I am not worried about losing power by including too many variables in the model.
+stargazer(svyglm(formula = in_prek ~ as.factor(AGEP) + as.factor(PUMA) + as.factor(female) + as.factor(NATIVITY) + as.factor(race_eth) + as.factor(UScitizen) + as.factor(moved_past_yr) + as.factor(parent_employed) + as.factor(ge1parent_native) + as.factor(num_parents), family = quasibinomial(), design = pums_p.rep, data = final_analytic_sample), type = 'text', title="Child, Parent, and Family Demographics Logistic Regression Model")
+  
+  
+chap_5_results <- svyglm(formula = in_prek ~ as.factor(AGEP) + as.factor(PUMA) + as.factor(female) + as.factor(NATIVITY) + as.factor(race_eth) + as.factor(UScitizen) + as.factor(moved_past_yr) + as.factor(parent_employed) + as.factor(ge1parent_native) + as.factor(num_parents), family = quasibinomial(), design = pums_p.rep, data = final_analytic_sample)
+  
+  chap_5_results_summary <- summary(chap_5_results)
+  
+  chap_5_results_summary_valsIwant <- chap_5_results_summary$coefficients
+  
+  
+  #chap_5_results_summary_valsIwant
+  #rownames(chap_5_results_summary_valsIwant)
+  
+  chap_5_results_vars <- rownames(chap_5_results_summary_valsIwant)[-1]
+  chap_5_results_betas <- chap_5_results_summary_valsIwant[,1][-1]
+  chap_5_results_SEs <- chap_5_results_summary_valsIwant[,2][-1]
+  
+    
+  
+#age plot
+  age_x_vals <- c("3", "4", "5")
+  age_y_vals <- c(1, exp(chap_5_results_betas[1:2]))
+  age_y_max <- c(1, exp(chap_5_results_betas[1:2] + 1.96*chap_5_results_SEs[1:2]))
+  age_y_min <- c(1, exp(chap_5_results_betas[1:2] - 1.96*chap_5_results_SEs[1:2]))
+  
+  age_plot <- ggplot() +
+    geom_point(aes(x = age_x_vals, y = age_y_vals, color=age_x_vals)) +
+    geom_errorbar(aes(x = age_x_vals, ymax = age_y_max, ymin = age_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Age (Years)") +
+    ylim(c(0, 5)) +
+    theme(axis.title.y=element_blank())
+  
+  
+#PUMA plot
+  PUMA <- factor(c("Cambridge", "Somerville, Everett", "Allston, Brighton, Fenway", "Back Bay, Beacon Hill, Charlestown, East Boston, Central, South End", "Dorchester, South Boston", "Mattapan, Roxbury", "Hyde Park, Jamaica Plain, Roslindale, West Roxbury"))
+  PUMA_y_vals <- c(1, exp(chap_5_results_betas[3:8]))
+  PUMA_y_max <- c(1, exp(chap_5_results_betas[3:8] + 1.96*chap_5_results_SEs[3:8]))
+  PUMA_y_min <- c(1, exp(chap_5_results_betas[3:8] - 1.96*chap_5_results_SEs[3:8]))
+  
+  PUMA_plot <- ggplot() +
+    geom_point(aes(x = PUMA, y = PUMA_y_vals, color=PUMA)) +
+    geom_errorbar(aes(x = PUMA, ymax = PUMA_y_max, ymin = PUMA_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "right") +
+    xlab("PUMA") +
+    ylim(c(0, 24)) +
+    theme(axis.text.x = element_blank()) +
+    theme(axis.ticks = element_blank())
+
+  
+  #Sex plot
+  Sex_x_vals <- factor(c("Male", "Female"), levels = c("Male", "Female"))
+  Sex_y_vals <- c(1, exp(chap_5_results_betas[9]))
+  Sex_y_max <- c(1, exp(chap_5_results_betas[9] + 1.96*chap_5_results_SEs[9]))
+  Sex_y_min <- c(1, exp(chap_5_results_betas[9] - 1.96*chap_5_results_SEs[9]))
+  
+  Sex_plot <- ggplot() +
+    geom_point(aes(x = Sex_x_vals, y = Sex_y_vals, color=Sex_x_vals)) +
+    geom_errorbar(aes(x = Sex_x_vals, ymax = Sex_y_max, ymin = Sex_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Sex") +
+    ylim(c(0, 5)) +
+    theme(axis.title.y=element_blank())
+  
+  
+  #Nativity plot
+  Nativity_x_vals <- factor(c("US Born", "Foreign Born"), levels = c("US Born", "Foreign Born"))
+  Nativity_y_vals <- c(1, exp(chap_5_results_betas[10]))
+  Nativity_y_max <- c(1, exp(chap_5_results_betas[10] + 1.96*chap_5_results_SEs[10]))
+  Nativity_y_min <- c(1, exp(chap_5_results_betas[10] - 1.96*chap_5_results_SEs[10]))
+  
+  Nativity_plot <- ggplot() +
+    geom_point(aes(x = Nativity_x_vals, y = Nativity_y_vals, color=Nativity_x_vals)) +
+    geom_errorbar(aes(x = Nativity_x_vals, ymax = Nativity_y_max, ymin = Nativity_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Nativity") +
+    ylim(c(0, 100)) +
+    theme(axis.title.y=element_blank())
+  
+  
+  #Race_eth plot
+  Race_eth_x_vals <- factor(c("Hispanic", "NH Asian", "NH Black/AA", "NH Other", "NH WHite"), levels = c("Hispanic", "NH Asian", "NH Black/AA", "NH Other", "NH WHite"))
+  Race_eth_y_vals <- c(1, exp(chap_5_results_betas[11:14]))
+  Race_eth_y_max <- c(1, exp(chap_5_results_betas[11:14] + 1.96*chap_5_results_SEs[11:14]))
+  Race_eth_y_min <- c(1, exp(chap_5_results_betas[11:14] - 1.96*chap_5_results_SEs[11:14]))
+  
+  Race_eth_plot <- ggplot() +
+    geom_point(aes(x = Race_eth_x_vals, y = Race_eth_y_vals, color=Race_eth_x_vals)) +
+    geom_errorbar(aes(x = Race_eth_x_vals, ymax = Race_eth_y_max, ymin = Race_eth_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Race/Ethnicity") +
+    ylim(c(0, 18)) +
+    theme(axis.title.y=element_blank()) +
+    theme(axis.text.x = element_text(size = 8))
+    
+  
+  
+  #US Citizen plot
+  USCit_x_vals <- factor(c("Not Citizen", "Citizen"), levels = c("Not Citizen", "Citizen"))
+  USCit_y_vals <- c(1, exp(chap_5_results_betas[15]))
+  USCit_y_max <- c(1, exp(chap_5_results_betas[15] + 1.96*chap_5_results_SEs[15]))
+  USCit_y_min <- c(1, exp(chap_5_results_betas[15] - 1.96*chap_5_results_SEs[15]))
+  
+  USCit_plot <- ggplot() +
+    geom_point(aes(x = USCit_x_vals, y = USCit_y_vals, color=USCit_x_vals)) +
+    geom_errorbar(aes(x = USCit_x_vals, ymax = USCit_y_max, ymin = USCit_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("US Citizen")  +
+    ylim(c(0, 100)) +
+    theme(axis.title.y=element_blank())
+  
+  
+  
+  #moved plot
+  moved_x_vals <- factor(c("Did not Move", "Moved"), levels = c("Did not Move", "Moved"))
+  moved_y_vals <- c(1, exp(chap_5_results_betas[16]))
+  moved_y_max <- c(1, exp(chap_5_results_betas[16] + 1.96*chap_5_results_SEs[16]))
+  moved_y_min <- c(1, exp(chap_5_results_betas[16] - 1.96*chap_5_results_SEs[16]))
+  
+  moved_plot <- ggplot() +
+    geom_point(aes(x = moved_x_vals, y = moved_y_vals, color=moved_x_vals)) +
+    geom_errorbar(aes(x = moved_x_vals, ymax = moved_y_max, ymin = moved_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Moved in Past Year") +
+    ylim(c(0, 3)) +
+    theme(axis.title.y=element_blank())
+  
+ 
+  #Parent employment plot
+  parentemp_x_vals <- factor(c("At Least One Parent Unemployed", "All Parent(s) Employed"), levels = c("At Least One Parent Unemployed", "All Parent(s) Employed"))
+  parentemp_y_vals <- c(1, exp(chap_5_results_betas[17]))
+  parentemp_y_max <- c(1, exp(chap_5_results_betas[17] + 1.96*chap_5_results_SEs[17]))
+  parentemp_y_min <- c(1, exp(chap_5_results_betas[17] - 1.96*chap_5_results_SEs[17]))
+  
+  parentemp_plot <- ggplot() +
+    geom_point(aes(x = parentemp_x_vals, y = parentemp_y_vals, color=parentemp_x_vals)) +
+    geom_errorbar(aes(x = parentemp_x_vals, ymax = parentemp_y_max, ymin = parentemp_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Parent Employment")  +
+    ylim(c(0, 6)) +
+    theme(axis.title.y=element_blank()) +
+    theme(axis.text.x = element_text(size = 8))
+  
+  
+  #Parent nativity plot
+  parentnat_x_vals <- factor(c("All Parent(s) Foreign Born", "At Least One Parent US Born"), levels = c("All Parent(s) Foreign Born", "At Least One Parent US Born"))
+  parentnat_y_vals <- c(1, exp(chap_5_results_betas[18]))
+  parentnat_y_max <- c(1, exp(chap_5_results_betas[18] + 1.96*chap_5_results_SEs[18]))
+  parentnat_y_min <- c(1, exp(chap_5_results_betas[18] - 1.96*chap_5_results_SEs[18]))
+  
+  parentnat_plot <- ggplot() +
+    geom_point(aes(x = parentnat_x_vals, y = parentnat_y_vals, color=parentnat_x_vals)) +
+    geom_errorbar(aes(x = parentnat_x_vals, ymax = parentnat_y_max, ymin = parentnat_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Parent Nativity") +
+    ylim(c(0, 6)) +
+    theme(axis.title.y=element_blank()) +
+    theme(axis.text.x = element_text(size = 8))
+  
+  #Two parent plot  
+  twoparent_x_vals <- factor(c("Single Parent", "Two Parents"), levels = c("Single Parent", "Two Parents"))
+  twoparent_y_vals <- c(1, exp(chap_5_results_betas[19]))
+  twoparent_y_max <- c(1, exp(chap_5_results_betas[19] + 1.96*chap_5_results_SEs[19]))
+  twoparent_y_min <- c(1, exp(chap_5_results_betas[19] - 1.96*chap_5_results_SEs[19]))
+  
+  twoparent_plot <- ggplot() +
+    geom_point(aes(x = twoparent_x_vals, y = twoparent_y_vals, color=twoparent_x_vals)) +
+    geom_errorbar(aes(x = twoparent_x_vals, ymax = twoparent_y_max, ymin = twoparent_y_min)) +
+    geom_hline(yintercept = 1) +
+    ylab("Odds Ratio of Enrolling in Preschool") +
+    theme(legend.position = "none") +
+    xlab("Number of Parents") +
+    ylim(c(0, 3)) +
+    theme(axis.title.y=element_blank())
+  
+  
+  
+  
+
+grid.arrange(age_plot, Sex_plot, Nativity_plot, USCit_plot, Race_eth_plot, nrow = 3, left = "Odds Ratio of Enrolling in Preschool", top = "Child Demographics")
+
+grid.arrange(parentemp_plot, parentnat_plot, nrow = 1, left = "Odds Ratio of Enrolling in Preschool", top = "Parent Demographics")
+
+grid.arrange(moved_plot, twoparent_plot, nrow = 1, left = "Odds Ratio of Enrolling in Preschool", top = "Family Characteristics")
+
+PUMA_plot
+
+```
+
+## References
+
+1.          National Head Start Association. National Head Start Fact Sheet. nhsa.org. https://www.nhsa.org/national-head-start-fact-sheets. Published 2019.
+
+2.          Office of Head Start. History of Head Start. acf.hhs.gov. https://www.acf.hhs.gov/ohs/about/history-of-head-start. Published 2019.
+
+3.          Office of Head Start. History of Head Start. acf.hhs.gov.
+
+4.          HHS, Acf, Ohs. Head Start Early Learning Outcomes Framework: Ages Birth to Five.
+
+5.          Reardon SF, Portilla XA. Recent Trends in Income, Racial, and Ethnic School Readiness Gaps at Kindergarten Entry. AERA Open. 2016;2(3):1-8. doi:10.1177/2332858416657343
+
+6.          Bradbury B, Corak M, Waldfogel J, Washbrook E. Inequality during the early years: Child outcomes and readiness to learn in Australia, Canada, United Kingdom, and United States. IZA Discuss Pap No 6120. 2011;(6120). https://ssrn.com/abstract=1965137.
+
+7.          Hiza HAB, Casavale KO, Guenther PM, Davis CA. Diet Quality of Americans Differs by Age, Sex, Race/ Ethnicity, Income, and Education Level. JAND. 2013;113:297-306. doi:10.1016/j.jand.2012.08.011
+
+8.          Anderson SE, Ramsden M, Kaye G. Diet qualities: Healthy and unhealthy aspects of diet quality in preschool children. Am J Clin Nutr. 2016;103(6):1507-1513. doi:10.3945/ajcn.115.128454
+
+9.          Department of Health and Human Services. Head Start Program Performance Standards. 2016:1-110. doi:10.1111/j.1399-0004.2005.00439.x
+
+10.        National Services Snapshots. Office of Head Start - Head Start Services Snapshot. :1-4. https://eclkc.ohs.acf.hhs.gov/sites/default/files/pdf/service-snapshot-all-programs-2016-2017.pdf.
+
+11.        Sabol TJ, Chase-Lansdale PL. The Inﬂuence of Low-Income Children’s Participation in Head Start on Their Parents’ Education and Employment. J Policy Anal Manag. 2014;34(1):136-163. doi:10.1002/pam
+
+12.        Shager HM, Schindler HS, Magnuson KA, Duncan GJ, Yoshikawa H, Hart CMD. Can Research Design Explain Variation in Head Start Research Results? A Meta-Analysis of Cognitive and Achievement Outcomes. Educ Eval Policy Anal. 2013;35(1):76-95. doi:10.3102/0162373712462453
+
+13.        Kay N, Pennucci A. Early Childhood Education for Low-Income Students: A Review of the Evidence and Benefit-Cost Analysis. Olympia; 2014.
+
+14.        Lumeng JC, Kaciroti N, Sturza J, et al. Changes in Body Mass Index Associated With Head Start Participation. Pediatrics. 2015;135(2):e449-e456. doi:10.1542/peds.2014-1725
+
+15.        Felix CC, Frisvold DE. Health outcomes from head start participation. Contrib to Econ Anal. 2010;290(2010):115-138. doi:10.1108/S0573-8555(2010)0000290009
+
+16.        Ansari A, Purtell KM, Gershoff ET. Parenting Gains in Head Start as a Function of Initial Parenting Skill. J Marriage Fam. 2016;78(5):1195-1207. doi:10.1111/jomf.12296
+
+17.        Child Trends. Head Start.; 2018. https://www.childtrends.org/indicators/head-start.
+
+18.        Start Enterprise System H. Office of Head Start - Head Start Services Snapshot.; 2017. https://eclkc.ohs.acf.hhs.gov/sites/default/files/pdf/no-search/service-snapshot-hs-2017-2018.pdf. Accessed November 24, 2019.
+
+19.        Caronongan P, Moiduddin E, West J, Vogel CA. Children in Early Head Start and Head Start: A Profile of Early Leavers. Washington, DC; 2014. https://www.acf.hhs.gov/sites/default/files/opre/bfaces_faces_stayers_leavers_brief_cleared_8_21_14_1.pdf.
+
+20.        Tarullo L, Knas E, Klein AK, Aikens N, Malone L, Harding JF. A national portrait of Head Start children and families: FACES 2014. 2017;(December):1-18.
+
